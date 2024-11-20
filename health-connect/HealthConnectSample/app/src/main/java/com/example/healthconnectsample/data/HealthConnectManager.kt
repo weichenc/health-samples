@@ -20,6 +20,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.Resources.NotFoundException
 import android.os.Build
+import android.util.Log
 import androidx.activity.result.contract.ActivityResultContract
 import androidx.compose.runtime.mutableStateOf
 import androidx.health.connect.client.HealthConnectClient
@@ -30,6 +31,7 @@ import androidx.health.connect.client.records.DistanceRecord
 import androidx.health.connect.client.records.ExerciseSessionRecord
 import androidx.health.connect.client.records.HeartRateRecord
 import androidx.health.connect.client.records.Record
+import androidx.health.connect.client.records.SkinTemperatureRecord
 import androidx.health.connect.client.records.SleepSessionRecord
 import androidx.health.connect.client.records.SpeedRecord
 import androidx.health.connect.client.records.StepsRecord
@@ -43,6 +45,8 @@ import androidx.health.connect.client.time.TimeRangeFilter
 import androidx.health.connect.client.units.Energy
 import androidx.health.connect.client.units.Length
 import androidx.health.connect.client.units.Mass
+import androidx.health.connect.client.units.Temperature
+import androidx.health.connect.client.units.TemperatureDelta
 import com.example.healthconnectsample.R
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -335,6 +339,72 @@ class HealthConnectManager(private val context: Context) {
     }
 
     /**
+     * Generate Skin Temperature Data
+     */
+    suspend fun generateSkinTemperatureData() {
+        // Make the skin temperature data in last 1 hour
+        val endTime = ZonedDateTime.now()
+        val startTime = endTime.minusHours(1)
+
+        val skinTemperatureRecord = SkinTemperatureRecord(
+            startTime = startTime.toInstant(),
+            startZoneOffset = startTime.offset,
+            endTime = endTime.toInstant(),
+            endZoneOffset = endTime.offset,
+            deltas = generateSkinTemperatureDeltas(startTime, endTime),
+            baseline = Temperature.celsius(Random.nextDouble(36.0, 37.5)),
+            measurementLocation = SkinTemperatureRecord.MEASUREMENT_LOCATION_WRIST
+        )
+
+        val records = listOf(skinTemperatureRecord)
+        healthConnectClient.insertRecords(records)
+    }
+
+    /**
+     * Read data of [SkinTemperatureRecord] of last 7 days
+     */
+    suspend fun readSkinTemperatureRecords(): List<SkinTemperatureRecordData> {
+        val endTime = ZonedDateTime.now()
+        val startTime = endTime.minusDays(7)
+
+        val records = mutableListOf<SkinTemperatureRecordData>()
+        val skinTemperatureRecordRequest = ReadRecordsRequest(
+            recordType = SkinTemperatureRecord::class,
+            timeRangeFilter = TimeRangeFilter.between(startTime.toInstant(), endTime.toInstant()),
+            ascendingOrder = false
+        )
+        val skinTemperatureRecords = healthConnectClient.readRecords(skinTemperatureRecordRequest)
+        skinTemperatureRecords.records.forEach { record ->
+            val sessionTimeFilter = TimeRangeFilter.between(record.startTime, record.endTime)
+            val durationAggregateRequest = AggregateRequest(
+                metrics = setOf(
+                    SkinTemperatureRecord.TEMPERATURE_DELTA_AVG,
+                    SkinTemperatureRecord.TEMPERATURE_DELTA_MAX,
+                    SkinTemperatureRecord.TEMPERATURE_DELTA_MIN
+                ),
+                timeRangeFilter = sessionTimeFilter
+            )
+            val aggregateResponse = healthConnectClient.aggregate(durationAggregateRequest)
+            records.add(
+                SkinTemperatureRecordData(
+                    uid = record.metadata.id,
+                    startTime = record.startTime,
+                    startZoneOffset = record.startZoneOffset,
+                    endTime = record.endTime,
+                    endZoneOffset = record.endZoneOffset,
+                    baseline = record.baseline,
+                    deltaAvg = aggregateResponse[SkinTemperatureRecord.TEMPERATURE_DELTA_AVG],
+                    deltaMax = aggregateResponse[SkinTemperatureRecord.TEMPERATURE_DELTA_MAX],
+                    deltaMin = aggregateResponse[SkinTemperatureRecord.TEMPERATURE_DELTA_MIN],
+                    deltas = record.deltas
+                )
+            )
+        }
+        return records
+    }
+
+
+    /**
      * Writes [WeightRecord] to Health Connect.
      */
     suspend fun writeWeightInput(weight: WeightRecord) {
@@ -426,6 +496,26 @@ class HealthConnectManager(private val context: Context) {
             stageStart = checkedEnd
         }
         return sleepStages
+    }
+
+    /** Creates a random temperature delta spans the specified [start] to [end] time. */
+    private fun generateSkinTemperatureDeltas(
+        start: ZonedDateTime,
+        end: ZonedDateTime
+    ): List<SkinTemperatureRecord.Delta> {
+        val skinTemperatureDeltas = mutableListOf<SkinTemperatureRecord.Delta>()
+        var stageStart = start
+        while (stageStart < end) {
+            skinTemperatureDeltas.add(
+                SkinTemperatureRecord.Delta(
+                    time = stageStart.toInstant(),
+                    delta = TemperatureDelta.celsius(Random.nextDouble(-1.0, 1.0))
+                )
+            )
+            stageStart = stageStart.plusMinutes(Random.nextLong(5, 10))
+        }
+
+        return skinTemperatureDeltas
     }
 
     /**

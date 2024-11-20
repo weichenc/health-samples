@@ -21,6 +21,7 @@
     <string name="sleep_sessions">Sleep sessions</string>
     <string name="sleep_session_detail">Sleep session detail</string>
     <string name="differential_changes">Changes</string>
+    <string name="skin_temperature_record">Skin Temperature Records</string>
 
     <!-- Welcome screen -->
     <string name="welcome_message">Welcome to Health Connect!</string>
@@ -138,4 +139,5 @@
     <string name="settings">Settings</string>
     <string name="manage">Manage Health Connect</string>
     <string name="disconnect">Disconnect Health Connect</string>
+    <string name="generate_skin_temperature_data">Generate Skin Temperature Data</string>
 </resources>

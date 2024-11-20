@@ -46,6 +46,9 @@ import com.example.healthconnectsample.presentation.screen.recordlist.RecordList
 import com.example.healthconnectsample.presentation.screen.recordlist.RecordListScreenViewModel
 import com.example.healthconnectsample.presentation.screen.recordlist.RecordListViewModelFactory
 import com.example.healthconnectsample.presentation.screen.recordlist.SeriesRecordsType
+import com.example.healthconnectsample.presentation.screen.skinTemperature.SkinTemperatureScreen
+import com.example.healthconnectsample.presentation.screen.skinTemperature.SkinTemperatureViewModel
+import com.example.healthconnectsample.presentation.screen.skinTemperature.SkinTemperatureViewModelFactory
 import com.example.healthconnectsample.presentation.screen.sleepsession.SleepSessionScreen
 import com.example.healthconnectsample.presentation.screen.sleepsession.SleepSessionViewModel
 import com.example.healthconnectsample.presentation.screen.sleepsession.SleepSessionViewModelFactory
@@ -209,6 +212,37 @@ fun HealthConnectNavigation(
                 uiState = viewModel.uiState,
                 onInsertClick = {
                     viewModel.generateSleepData()
+                },
+                onError = { exception ->
+                    showExceptionSnackbar(scaffoldState, scope, exception)
+                },
+                onPermissionsResult = {
+                    viewModel.initialLoad()
+                },
+                onPermissionsLaunch = { values ->
+                    permissionsLauncher.launch(values)}
+            )
+        }
+        composable(Screen.SkinTemperatureRecords.route) {
+            val viewModel: SkinTemperatureViewModel = viewModel(
+                factory = SkinTemperatureViewModelFactory(
+                    healthConnectManager = healthConnectManager
+                )
+            )
+            val permissionsGranted by viewModel.permissionsGranted
+            val recordList by viewModel.recordList
+            val permissions = viewModel.permissions
+            val onPermissionsResult = {viewModel.initialLoad()}
+            val permissionsLauncher =
+                rememberLauncherForActivityResult(viewModel.permissionsLauncher) {
+                    onPermissionsResult()}
+            SkinTemperatureScreen(
+                permissionsGranted = permissionsGranted,
+                permissions = permissions,
+                recordList = recordList,
+                uiState = viewModel.uiState,
+                onInsertClick = {
+                    viewModel.generateSkinTemperatureData()
                 },
                 onError = { exception ->
                     showExceptionSnackbar(scaffoldState, scope, exception)
